@@ -1,0 +1,197 @@
+import pandas as pd
+import alarm_behavior_calculations as calc60
+import os
+import matplotlib.pyplot as plt
+import numpy as np
+import alarm_behavior_plotting as plot
+
+### PART 1: Importing data / making dataframes with all necessary calculations for plotting
+# Set path to all files
+path = '/Users/lindsey/Documents/Kronauer Lab/Alarm Response/olfactorymaturation/'
+
+# Read the summary CSV file into a pandas DataFrame
+summary_file = 'summary_no27.csv'
+df = pd.read_csv(summary_file, header=0)
+
+# Initialize 'all_data' DataFrame with the specified column names
+column_names = ['time', 'stimulus', 'file_name', 'n_total', 'n_2wo', 'n_2mo',
+                'n_outside_total', 'n_outside_2wo', 'n_outside_2mo']
+all_data = pd.DataFrame(columns=column_names)
+
+# Create an empty list to store dataframes from each iteration
+dataframes_list = []
+
+# Set the correct data types for columns in 'all_data' to match 'data'
+data_types = {
+    'time': int,
+    'n_total': int,
+    'n_2wo': int,
+    'n_2mo': int,
+    'n_outside_total': int,
+    'n_outside_2wo': int,
+    'n_outside_2mo': int,
+    'file_name': str  # Keep object columns as string type
+}
+# Apply data types to 'all_data'
+all_data = all_data.astype(data_types)
+
+# Iterate through all file names in summary file, build dataframe with all calculations, and then add to a dataframe
+# with all of the data
+for i in range(len(df)):
+    # Pull out file name
+    file_name = df.iloc[i]['file_name']
+
+    # Check to make sure that exclude is not yes
+    data_folder = '/Users/lindsey/Documents/Kronauer Lab/Alarm Response/olfactorymaturation/raw_data/'
+    file_path = data_folder + file_name +"_60prepost.csv"
+    if os.path.exists(file_path):
+        exclude = df.iloc[i]['exclude?']
+        if exclude != "yes":
+
+            # Pull out values of interest
+            n_total = df.iloc[i]['n_total']
+            n_2wo = df.iloc[i]['n_2wo']
+            n_2mo = df.iloc[i]['n_2mo']
+            stimulus = df.iloc[i]['stimulus']
+
+            # Make dataframe with raw data
+            data = calc60.all_calculations(file_name, n_total, n_2wo, n_2mo, stimulus)
+            data['file_name'] = file_name
+
+            # Append 'data' to the list of dataframes
+            dataframes_list.append(data)
+
+# Concatenate all dataframes in the list into a single dataframe 'all_data' and save as a csv
+if dataframes_list:
+    all_data = pd.concat(dataframes_list, ignore_index=True)
+
+all_data = all_data[['file_name', 'stimulus', 'time', 'n_total', 'n_2wo', 'n_2mo',
+                             'n_outside_total', 'n_outside_2wo', 'n_outside_2mo',
+                             'prop_outside_total', 'prop_outside_2wo', 'prop_outside_2mo']]
+
+all_data.to_csv('240117_alarm_data.csv')
+
+### PART 2: Logistic curve fitting from GraphPad Prism
+
+# Read the CSV files with logistic curve fitting for all alarm experiments into a pandas DataFrame and format
+curve_path = '/Users/lindsey/Documents/Kronauer Lab/Alarm Response/olfactorymaturation/'
+curve_alarm = curve_path + '240102_allalarm_nonlinearcurve.csv'
+curve_heptanone = curve_path + '240102_4m3heptanone_nonlinearcurve.csv'
+curve_heptanol = curve_path + '240102_4m3heptanol_nonlinearcurve.csv'
+curve_blend = curve_path + '240102_blend_nonlinearcurve.csv'
+curve_ctrl = curve_path + '240102_control_nonlinearcurve.csv'
+
+curve_alarm = pd.read_csv(curve_alarm, header=0)
+curve_heptanone = pd.read_csv(curve_heptanone, header=0)
+curve_heptanol = pd.read_csv(curve_heptanol, header=0)
+curve_blend = pd.read_csv(curve_blend, header=0)
+curve_ctrl = pd.read_csv(curve_ctrl, header=0)
+
+columns=['time','mean_2wo', 'CIhigh_2wo', 'CIlow_2wo', 'mean_2mo', 'CIhigh_2mo', 'CIlow_2mo']
+curve_alarm.columns = columns
+curve_heptanone.columns = columns
+curve_heptanol.columns = columns
+curve_blend.columns = columns
+curve_ctrl.columns = columns
+
+### PART 3: Build figures
+
+# Set path to output figures
+fig_path = '/Users/lindsey/Documents/Kronauer Lab/Alarm Response/olfactorymaturation/240117_figures/'
+
+# Make timecourse of 2 wo vs 2mo ants outside nest for pooled alarm compounds
+alarm_only = all_data[all_data['stimulus'] != 'pentane']
+file_names_alarm = alarm_only['file_name'].nunique()
+print("Number of trials in alarm only 'file_name' column:", file_names_alarm)
+plot.timecourse_alarm(alarm_only, curve_alarm, (fig_path + 'pooled_alarm.png'))
+
+# Make timecourse of 2 wo vs 2 mo ants outside nest for each compounds plus curve fit to data
+heptanone = all_data[all_data['stimulus'] == '4m3heptanone']
+file_names_one = heptanone['file_name'].nunique()
+print("Number of trials in heptanone 'file_name' column:", file_names_one)
+plot.timecourse_alarm(heptanone, curve_heptanone, (fig_path + '4m3heptanone.png'))
+
+heptanol = all_data[all_data['stimulus'] == '4m3heptanol']
+file_names_ol = heptanol['file_name'].nunique()
+print("Number of trials in heptanol 'file_name' column:", file_names_ol)
+plot.timecourse_alarm(heptanol, curve_heptanol, (fig_path + '4m3heptanol.png'))
+
+blend = all_data[all_data['stimulus'] == 'blend']
+file_names_blend = blend['file_name'].nunique()
+print("Number of trials in blend 'file_name' column:", file_names_blend)
+plot.timecourse_alarm(blend, curve_blend, (fig_path + 'blend.png'))
+
+pentane = all_data[all_data['stimulus'] == 'pentane']
+file_names_pentane = pentane['file_name'].nunique()
+print("Number of trials in pentane 'file_name' column:", file_names_pentane)
+plot.timecourse_alarm(pentane, curve_ctrl, (fig_path + 'pentane.png'))
+
+# Make figure comparing 4m3heptanone, 4m3heptanol, and blend total ants outside
+mean_heptanone = (heptanone.groupby('time')['prop_outside_total'].mean())
+mean_heptanol = (heptanol.groupby('time')['prop_outside_total'].mean())
+mean_blend = (blend.groupby('time')['prop_outside_total'].mean())
+std_heptanone = heptanone.groupby('time')['prop_outside_total'].std()
+std_heptanol = heptanol.groupby('time')['prop_outside_total'].std()
+std_blend = blend.groupby('time')['prop_outside_total'].std()
+n_heptanone = heptanone.groupby('time')['prop_outside_total'].count()
+n_heptanol = heptanol.groupby('time')['prop_outside_total'].count()
+n_blend = blend.groupby('time')['prop_outside_total'].count()
+sem_heptanone = std_heptanone / np.sqrt(n_heptanone)
+sem_heptanol = std_heptanol / np.sqrt(n_heptanol)
+sem_blend = std_blend / np.sqrt(n_blend)
+time_data = mean_heptanone.index.to_numpy()
+mean_heptanone = mean_heptanone.to_numpy()
+mean_heptanol = mean_heptanol.to_numpy()
+mean_blend = mean_blend.to_numpy()
+
+# Info about logistic curve and 95% CI
+curve_path = '/Users/lindsey/Documents/Kronauer Lab/Alarm Response/olfactorymaturation/'
+curve_shared = pd.read_csv(curve_path + '240102_totalalarm_nonlinearcurve.csv')
+sharedcolumns=['time','mean', 'CIhigh', 'CIlow']
+curve_shared.columns = sharedcolumns
+curve_time = curve_shared['time'].to_numpy()
+curve_mean = curve_shared['mean'].to_numpy()
+curve_high_err = curve_shared['CIhigh'].to_numpy()
+curve_low_err = curve_shared['CIlow'].to_numpy()
+
+
+# Add jitter to the x-coordinates of scatter points
+#jitter = 0.8
+#jittered_time_data1 = time_data + np.random.uniform(0, jitter, size=len(time_data))
+#jittered_time_data2 = time_data + np.random.uniform(-jitter, 0, size=len(time_data))
+#print(jittered_time_data1)
+#print(jittered_time_data2)
+
+# to keep jitter the same every time figure is re-generated
+jittered_time_data1 = [-59.54753142, -49.20407652, -39.38455411, -29.72082627, -19.56361448,
+                       -9.7601683, 0.39206335, 10.7517569, 20.36872912, 30.03033823, 40.05382758,
+                       50.40722597, 60.55915694]
+
+jittered_time_data2 = [-60.75995101, -50.1330733, -40.74704238, -30.19031436, -20.14203912,
+                       -10.2413499, -0.47236688, 9.47672219, 19.36406218, 29.64231909, 39.66371854,
+                       49.61459909, 59.61818574]
+
+# Plotting the mean values with error bars SEM and jitter for visualization
+plt.figure(figsize=(6, 4))
+plt.figure(facecolor='white')
+plt.errorbar(jittered_time_data2, mean_heptanone, yerr=sem_heptanone, label='4-methyl-3-heptanone', fmt='o', color='#26547C', alpha=0.8, elinewidth=4, markersize=14)
+plt.errorbar(jittered_time_data1, mean_heptanol, yerr=sem_heptanol, label='4-methyl-3-heptanol', fmt='o', color='#EF476F', alpha=0.8, elinewidth=4, markersize=14)
+plt.errorbar(time_data, mean_blend, yerr=sem_blend, label='9:1 blend', fmt='o', color='#8FD5A6', alpha=0.8, elinewidth=4, markersize=14)
+
+# Plotting curve fit to data and 95% CI
+plt.plot(curve_time, curve_mean, alpha=0.1, color='#26547C')
+plt.plot(curve_time, curve_mean, alpha=0.1, color='#EF476F')
+plt.plot(curve_time, curve_mean, alpha=0.1, color='#8FD5A6')
+plt.fill_between(curve_time, curve_mean + curve_high_err, curve_mean - curve_low_err, alpha=0.1, color='#26547C')
+plt.fill_between(curve_time, curve_mean + curve_high_err, curve_mean - curve_low_err, alpha=0.1, color='#EF476F')
+plt.fill_between(curve_time, curve_mean + curve_high_err, curve_mean - curve_low_err, alpha=0.1, color='#8FD5A6')
+
+# Making it pretty
+plt.tick_params(axis='both', labelsize=12, color='black')
+plt.xlabel('Time (seconds)', fontsize=12, color='black')
+plt.ylabel('Proportion of Ants Outside Nest', fontsize=12, color='black')
+plt.ylim(0, 1)
+plt.xlim(-12, 62)
+plt.grid(axis='y', color='lightgrey', linestyle='--', linewidth=1)
+
+plt.savefig(fig_path + 'comparison_alarmstimuli.png')
